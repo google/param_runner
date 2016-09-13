@@ -1,0 +1,49 @@
+#
+# Copyright 2016 Google Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+FROM phusion/baseimage
+
+# Install dependencies for param_runner_etcd and curl for etcdctl installation.
+RUN apt-get update && apt-get install -y \
+    bash \
+    coreutils \
+    jq \
+    curl
+
+# Clean up APT when done.
+RUN apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# Download and install etcdctl.
+RUN curl -L https://github.com/coreos/etcd/releases/download/v3.0.7/etcd-v3.0.7-linux-amd64.tar.gz -o etcd-v3.0.7-linux-amd64.tar.gz
+RUN tar -xzvf ./etcd-v3.0.7-linux-amd64.tar.gz etcd-v3.0.7-linux-amd64/etcdctl
+RUN cp etcd-v3.0.7-linux-amd64/etcdctl /usr/bin
+RUN rm -rf etcd-v3.0.7-linux-amd64*
+
+RUN mkdir src
+RUN mkdir third_party
+
+# Copy param_runner and example scripts.
+COPY src/* src/
+COPY third_party/* third_party/
+COPY example/calc_and_sleep_etcd.sh src/
+
+ENTRYPOINT ["/sbin/my_init", "--", "./src/calc_and_sleep_etcd.sh"]
+
+# Running the example with etcd running on another docker container:
+#
+# $ docker run -ti -p 2379:2379 --name etcd quay.io/coreos/etcd etcd -listen-client-urls http://0.0.0.0:2379 --advertise-client-urls http://etcd:2379
+# $ docker build -t pre -f ./Dockerfile.example .
+# $ docker run -ti --link etcd pre --param_runner_etcdctl_args=--endpoints=http://etcd:2379
